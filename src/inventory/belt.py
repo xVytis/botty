@@ -141,6 +141,11 @@ def update_pot_needs():
     consumables.set_needs("mana", pot_needs["mana"])
     consumables.set_needs("rejuv", pot_needs["rejuv"])
     close(img)
+    # Return the details to replace removed 'should_buy_pots' methods necesarry for Diablo (from Gastropod's fork)
+    if sum(pot_needs.values()):
+        return pot_needs # A dict with pot names as key, and quantities needed as values
+    else:
+        return None
 
 def fill_up_belt_from_inventory(num_loot_columns: int):
     """
