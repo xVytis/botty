@@ -72,12 +72,12 @@ class Diablo:
                         self._curr_loc = self._town_manager.identify(self._curr_loc)
                         # It is not necessary to fail the game if the bot fails to identify or stash (from Gastropod's fork)
                         if self._curr_loc:
-                        Logger.debug(location + ":Stashing items")
-                        self._curr_loc = self._town_manager.stash(self._curr_loc)
+                            Logger.debug(location + ":Stashing items")
+                            self._curr_loc = self._town_manager.stash(self._curr_loc)
                             if self._curr_loc:
-                        self._no_stash_counter = 0
-                        self._picked_up_items = False
-                        wait(1.0)
+                                self._no_stash_counter = 0
+                                self._picked_up_items = False
+                                wait(1.0)
                             else:
                                 Logger.warning(location + ":Could not stash items")
                         else:
