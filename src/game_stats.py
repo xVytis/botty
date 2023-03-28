@@ -210,7 +210,7 @@ class GameStats:
             self._location_stats["totals"]["failed_runs"]
         ])
 
-        table.columns.header = ["Run", "I", "C", "D", "MD", "F"]
+        table.columns.header = ["Run", "Itms", "Chkn", "Dead", "MDie", "Fail"]
 
         msg += f"\n{str(table)}\n"
         return msg
