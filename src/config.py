@@ -305,6 +305,8 @@ class Config:
             "ocr_during_pickit": bool(int(self._select_val("advanced_options", "ocr_during_pickit"))),
             "launch_options": self._select_val("advanced_options", "launch_options").replace("<name>", only_lowercase_letters(self.general["name"].lower())),
             "override_capabilities": _default_iff(Config()._select_optional("advanced_options", "override_capabilities"), ""),
+            "log_exp": bool(int(self._select_val("advanced_options", "log_exp"))),
+            
         }
 
         self.colors = {}

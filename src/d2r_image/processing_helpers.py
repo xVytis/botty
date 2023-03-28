@@ -15,7 +15,6 @@ from d2r_image.d2data_lookup import fuzzy_base_item_match
 from d2r_image.processing_data import EXPECTED_HEIGHT_RANGE, EXPECTED_WIDTH_RANGE, GAUS_FILTER, ITEM_COLORS, QUALITY_COLOR_MAP, Runeword, BOX_EXPECTED_HEIGHT_RANGE, BOX_EXPECTED_WIDTH_RANGE
 from d2r_image.strings_store import base_items
 from utils.misc import color_filter, erode_to_black, slugify
-from d2r_image.ocr import image_to_text
 from ui_manager import get_hud_mask
 
 from screen import convert_screen_to_monitor

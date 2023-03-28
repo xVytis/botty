@@ -1,3 +1,5 @@
+import cv2
+import time
 from config import Config
 from screen import convert_screen_to_monitor, grab
 from utils.custom_mouse import mouse
@@ -17,6 +19,9 @@ def get_experience():
 
     mouse.move(x_m, y_m-50, randomize = (8,1))
     crop = cut_roi(img, Config().ui_roi["xp_bar_text"])
+    
+    if Config().general["info_screenshots"]: cv2.imwrite(f"./log/screenshots/info/experience_" + time.strftime("%Y%m%d_%H%M%S") + ".png", crop)
+    
     ocr_result = ocr.image_to_text(
         images = crop,
         model = "ground-eng_inconsolata_inv_th_fast",
@@ -30,7 +35,7 @@ def get_experience():
         check_known_errors = False,
         correct_words = False
     )[0]
-
+    
     split_text = ocr_result.text.split(' ')
 
     try:
@@ -54,7 +59,8 @@ if __name__ == "__main__":
     print("Go to D2R window and press f11 to start game")
     keyboard.wait("f11")
 
-    exp = get_experience()
-    Logger.debug(f"EXP curr: {exp[0]}")
-    Logger.debug(f"EXP req: {exp[1]}")
-    Logger.debug(f"EXP per: {exp[2]}")
+    if Config().advanced_options["log_exp"]:
+        exp = get_experience()
+        Logger.debug(f"EXP curr: {exp[0]}")
+        Logger.debug(f"EXP req: {exp[1]}")
+        Logger.debug(f"EXP per: {exp[2]}")

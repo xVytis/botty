@@ -18,6 +18,7 @@ def image_to_text(
     invert: bool = True,
     threshold: int = 25,
     digits_only: bool = False,
+    no_lowercase: bool = True,
     fix_regexps: bool = True,
     check_known_errors: bool = True,
     correct_words: bool = True,
@@ -36,6 +37,7 @@ def image_to_text(
     :param invert: invert and threshold the input image(s)
     :param threshold: apply threshold to image (ex. 25 would threshold around V=25). Set to 0 to not threshold image.
     :param digits_only: only look for digits
+    :param no_lowercase: letters are all capital letters
     :param fix_regexps: use regex for various cases of common errors (I <-> 1, etc.)
     :param check_known_errors: check for predefined common errors and replace
     :param correct_words: check dictionary of words and match closest match
@@ -71,11 +73,17 @@ def image_to_text(
                 else:
                     processed_img = ~processed_img
             api.SetImageBytes(*_img_to_bytes(processed_img))
-            if digits_only:
+            # Note. All non-blank ASCII characters are: !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~
+            if digits_only: # There are only digits in the images
                 api.SetVariable("tessedit_char_blacklist",
-                                ".,!?@#$%&*()<>_-+=/:;'\"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
+                                " !\"#$%&\'()*+,-./:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~")
                 api.SetVariable("tessedit_char_whitelist", "0123456789")
                 api.SetVariable("classify_bln_numeric_mode", "1")
+            elif no_lowercase: # All the letters in the image are capital letters
+                api.SetVariable("tessedit_char_blacklist", "abcdefghijklmnopqrstuvwxyz")
+                api.SetVariable("tessedit_char_whitelist", " !\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`{|}~")
+            else: # All ASCII characters (english) are accepted
+                api.SetVariable("tessedit_char_whitelist", " !\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~")
             original_text = api.GetUTF8Text()
             text = original_text
             # replace newlines if image is a single line
@@ -125,7 +133,7 @@ def _img_to_bytes(image: np.ndarray, colorspace: str = 'BGR'):
 
 
 def _fix_regexps(ocr_output: str, repeat_count: int = 0) -> str:
-    # case: two 1's within a string; e.g., "SIIPER MANA POTION"
+    # case: two I's within a string; e.g., "SIIPER MANA POTION"
     try:
         text = II_U.sub('U', ocr_output)
     except:
