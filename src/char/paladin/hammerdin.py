@@ -78,7 +78,7 @@ class Hammerdin(Paladin):
             self._pather.traverse_nodes((Location.A5_PINDLE_SAFE_DIST, Location.A5_PINDLE_END), self, timeout=1.0, do_pre_move=False, force_tp=True, use_tp_charge=True)
         self._cast_hammers(Config().char["atk_len_pindle"])
         wait(0.1, 0.15)
-        self._cast_hammers(1.6, "redemption")
+        self._cast_hammers(Config().char["atk_len_pindle"])
         return True
 
     def kill_eldritch(self) -> bool:
@@ -93,7 +93,7 @@ class Hammerdin(Paladin):
         wait(0.05, 0.1)
         self._cast_hammers(Config().char["atk_len_eldritch"])
         wait(0.1, 0.15)
-        self._cast_hammers(1.6, "redemption")
+        self._cast_hammers(Config().char["atk_len_pindle"])
         return True
 
     def kill_shenk(self):
@@ -103,7 +103,7 @@ class Hammerdin(Paladin):
         wait(0.05, 0.1)
         self._cast_hammers(Config().char["atk_len_shenk"])
         wait(0.1, 0.15)
-        self._cast_hammers(1.6, "redemption")
+        self._cast_hammers(Config().char["atk_len_pindle"])
         return True
 
     def kill_council(self) -> bool:
@@ -126,7 +126,7 @@ class Hammerdin(Paladin):
             # Stay inside and cast hammers again moving forward
             self._move_and_attack((40, 10), atk_len)
             self._move_and_attack((-40, -20), atk_len)
-        self._cast_hammers(1.6, "redemption")
+        self._cast_hammers(Config().char["atk_len_pindle"])
         return True
 
     def kill_nihlathak(self, end_nodes: list[int]) -> bool:
