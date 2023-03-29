@@ -84,7 +84,7 @@ def _handle_pick_eth_sockets(item_data: dict, expression: BNIPExpression) -> tup
     soc_keyword_present =  expression_raw.lower().count("[sockets]") == 1 # currently ignoring if there's socket logic; i.e., [sockets] == 0 || [sockets] == 5
 
     eth = 0 # * -1 = set to false, 0 = not set, 1 = set to true
-    soc = 0
+    soc = 0 # * -1 = set to 0, 0 = not set or set to values include 0, 1 = set to strictly positive values only
     if eth_keyword_present:
         for i, token in enumerate(tokens := tokens_by_section[BNipSections.PROP]):
             if token.type == TokenType.ValueNTIPAliasFlag and str(token.value).lower() == "ethereal":
@@ -97,8 +97,9 @@ def _handle_pick_eth_sockets(item_data: dict, expression: BNIPExpression) -> tup
     if len(tokens_by_section) > 1 and soc_keyword_present:
         for i, token in enumerate(tokens := tokens_by_section[BNipSections.STAT]):
             if token.type == TokenType.KeywordNTIPAliasStat and token.value == str(NTIPAliasStat["sockets"]):
-                desired_sockets = int(tokens[i + 2].value)
-                if (desired_sockets > 0 and not (desired_sockets == 1 and tokens[i + 1].value == "<")) or (desired_sockets == 0 and tokens[i + 1].value == ">"):
+                value = int(tokens[i + 2].value)
+                operator = tokens[i + 1].value # String whose values can be: ==, !=, <=, >=, <, >
+                if (value > 0 and not (value == 1 and tokens[i + 1].value == "<")) or (value == 0 and tokens[i + 1].value == ">"):
                     soc = 1
                 else:
                     soc = -1
@@ -114,8 +115,10 @@ def _handle_pick_eth_sockets(item_data: dict, expression: BNIPExpression) -> tup
 
     ignore = 0
     if item_data["Color"] == "white":
+        # We can ignore any bnip expression with ethereal set to true or sockets set to 1+
         ignore = eth == 1 or soc == 1
     elif item_data["Color"] == "gray":
+        # We can ignore any bnip expression with ethereal set to false or sockets set to 0
         ignore = eth == soc == -1
 
     pick_eval_expr = expression.should_pickup
