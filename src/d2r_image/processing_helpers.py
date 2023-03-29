@@ -381,7 +381,7 @@ def find_base_and_remove_items_without_a_base(items_by_quality) -> dict:
     items_to_add = {}
     resolved_runewords = []
     for quality in items_by_quality:
-        if quality in [ItemQuality.Gray.value, ItemQuality.Normal.value, ItemQuality.Magic]:
+        if quality in [ItemQuality.Gray.value, ItemQuality.Normal.value, ItemQuality.Magic.value]:
             gray_normal_magic_removed.update(set_gray_and_normal_and_magic_base_items(items_by_quality))
         for item in items_by_quality[quality]:
             quality_keyword, normalized_text = get_normalized_normal_gray_item_text(item['text'])
