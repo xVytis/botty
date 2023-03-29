@@ -1,17 +1,13 @@
+import os
 import cv2
 import time
-
-import cv2
+import traceback
 import numpy as np
-from d2r_image.data_models import GroundItemList, HoveredItem, ItemQuality, ItemText
+
+from d2r_image.data_models import GroundItemList, HoveredItem, ItemQuality, ItemTooltip
 from d2r_image.bnip_helpers import parse_item
-
 from d2r_image.processing_helpers import build_d2_items, crop_text_clusters, crop_item_tooltip, get_items_by_quality, consolidate_clusters, find_base_and_remove_items_without_a_base, set_set_and_unique_base_items
-import numpy as np
-
 from logger import Logger
-
-import os
 
 os.makedirs("./log/screenshots/info", exist_ok=True)
 
@@ -24,16 +20,17 @@ def get_ground_loot(image: np.ndarray, consolidate: bool = False) -> GroundItemL
     set_set_and_unique_base_items(items_by_quality)
     return build_d2_items(items_by_quality)
 
-import traceback #TODO REMOV THIS
-
-def get_hovered_item(image: np.ndarray, model = "hover-eng_inconsolata_inv_th_fast") -> tuple[HoveredItem, ItemText]:
-    res, quality = crop_item_tooltip(image, model)
-    parsed_item = None
-    if res.ocr_result:
+def get_hovered_item_data(image: np.ndarray, model = "hover-eng_inconsolata_inv_th_fast") -> tuple[HoveredItem, ItemTooltip]:
+    res, quality, parsed_item = (None, None, None)
+    try:
+        res, quality = crop_item_tooltip(image, model)
+    except Exception as e:
+        Logger.error(f"crop_item_tooltip failed with ERROR {e}\n {traceback.format_exc()}")
+    if res and res.ocr_result:
         try:
             parsed_item = parse_item(quality, res.ocr_result.text)
         except Exception as e:
-            Logger.warning(f"\nparsed_item ERROR {e}\n {traceback.format_exc()}")
+            Logger.error(f"\nparse_item failed with ERROR {e}\n {traceback.format_exc()}")
             # * Log the screenshot to log/screenshots/info directory.
             t = time.time()
             cv2.imwrite(f"log/screenshots/info/02_{t}.png", res.img)
@@ -66,7 +63,7 @@ if __name__ == "__main__":
     while 1:
         img = grab().copy()
         # look for item tooltip
-        item, res = d2r_image.get_hovered_item(img)
+        item, res = d2r_image.get_hovered_item_data(img)
         if res.roi is not None:
             Logger.debug(f"Keep {item.Quality} {item.BaseItem['DisplayName']}?: {should_keep(item.as_dict())}")
             x, y, w, h = res.roi

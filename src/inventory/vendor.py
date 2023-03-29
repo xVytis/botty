@@ -66,7 +66,6 @@ def gamble():
                 wait(0.1, 0.15)
                 mouse.click(button="right")
                 wait(0.4, 0.6)
-                img=grab()
                 # make sure the "not enough gold" message doesn't exist
                 if is_visible(ScreenObjects.NotEnoughGold, img):
                     Logger.warning(f"Out of gold, stop gambling")
@@ -77,10 +76,10 @@ def gamble():
                 Logger.debug(f"Gamble purchase {new_count}/{max_gamble_count}")
                 set_gamble_count(new_count)
                 # inspect purchased item
-                if personal.inventory_has_items(img):
-                    items = personal.inspect_items(img, close_window=False)
+                if personal.inventory_has_items():
+                    items = personal.inspect_inventory_items(close_window=False)
                     if items:
-                        # specifically in gambling scenario, all items returned from inspect_items, which sells/drops unwanted items, are to be kept
+                        # specifically in gambling scenario, all items returned from inspect_inventory_items, which sells/drops unwanted items, are to be kept
                         # if there is a desired item, end function and go to stash
                         Logger.debug("Found desired item, go to stash")
                         common.close()

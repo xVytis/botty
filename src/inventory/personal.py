@@ -17,7 +17,7 @@ from ui import view
 from ui_manager import detect_screen_object, is_visible, select_screen_object_match, wait_until_visible, ScreenObjects, center_mouse, wait_for_update
 from messages import Messenger
 from d2r_image import processing as d2r_image
-from d2r_image.data_models import HoveredItem, ItemText
+from d2r_image.data_models import HoveredItem, ItemTooltip
 from screen import grab, convert_screen_to_monitor
 from item import consumables
 from bnip.NTIPAliasStat import NTIPAliasStat as NTIP_STATS
@@ -29,11 +29,11 @@ messenger = Messenger()
 nontradable_items = ["key of ", "essense of", "wirt's", "jade figurine"]
 
 @dataclass
-class BoxInfo:
-    img: np.ndarray = None
-    pos: tuple = None
-    column: int = None
-    row: int = None
+class InventoryItemAnalyze:
+    img: np.ndarray = None # Tooltip image
+    pos: tuple = None # Slot coordinates on screen
+    column: int = None # Column index in inventory
+    row: int = None # Row index in inventory
     need_id: bool = False
     sell: bool = False
     keep: bool = False
@@ -51,13 +51,13 @@ def set_inventory_gold_full(new_value: bool):
         Logger.info(f"Set inventory gold full: {new_value}")
         inv_gold_full = new_value
 
-def inventory_has_items(img: np.ndarray = None, close_window = False) -> bool:
+def inventory_has_items(close_window = False) -> bool:
     """
     Check if Inventory has any items
-    :param img: Img from screen.grab() with inventory open
     :return: Bool if inventory still has items or not
     """
-    img = open(img)
+    open()
+    img = grab()
     items=False
     for column, row in itertools.product(range(0, Config().char["num_loot_columns"]), range(4)):
         _, slot_img = common.get_slot_pos_and_img(img, column, row)
@@ -158,197 +158,197 @@ def stash_all_items(items: list = None):
     Logger.debug("Done stashing")
     return items
 
-def open(img: np.ndarray = None) -> np.ndarray:
-    img = grab() if img is None else img
+def open() -> np.ndarray:
+    img = grab()
     if not common.inventory_is_open():
         keyboard.send(Config().char["inventory_screen"])
         if not wait_until_visible(ScreenObjects.RightPanel, 1).valid:
             if not view.return_to_play():
-                return None
+                return False
             keyboard.send(Config().char["inventory_screen"])
             if not wait_until_visible(ScreenObjects.RightPanel, 1).valid:
                 Logger.error(f"personal.open(): Failed to open inventory")
-                return None
-        img = grab()
-    return img
+                return False
+    return True
 
 
-def log_item(item_box: ItemText, item_properties: HoveredItem):
-    if item_box is not None and item_box.ocr_result:
-        Logger.debug(f"OCR mean confidence: {item_box.ocr_result.mean_confidence}")
-        Logger.debug(item_properties.Text)
+def log_item(item_tooltip: ItemTooltip, hovered_item: HoveredItem):
+    if item_tooltip is not None and item_tooltip.ocr_result:
+        Logger.debug(f"OCR mean confidence: {item_tooltip.ocr_result.mean_confidence}")
+        Logger.debug(hovered_item.Text)
         if Config().general["info_screenshots"]:
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             found_low_confidence = False
-            for cnt, x in enumerate(item_box.ocr_result.word_confidences):
+            for cnt, x in enumerate(item_tooltip.ocr_result.word_confidences):
                 if x <= 88:
                     try:
-                        Logger.debug(f"Low confidence word #{cnt}: {item_box.ocr_result.original_text.split()[cnt]} -> {item_box.ocr_result.text.split()[cnt]}, Conf: {x}, save screenshot")
+                        Logger.debug(f"Low confidence word #{cnt}: {item_tooltip.ocr_result.original_text.split()[cnt]} -> {item_tooltip.ocr_result.text.split()[cnt]}, Conf: {x}, save screenshot")
                         found_low_confidence = True
                     except: pass
             if found_low_confidence:
-                cv2.imwrite(f"./log/screenshots/info/ocr_low_confidence_box_{timestamp}.png", item_box.img)
+                cv2.imwrite(f"./log/screenshots/info/ocr_low_confidence_box_{timestamp}.png", item_tooltip.img)
 
-def log_item_fail(hovered_item, slot):
+def log_item_fail(hovered_item_screen, slot):
     Logger.error(f"item segmentation failed for slot_pos: {slot[0]}")
     if Config().general["info_screenshots"]:
-        cv2.imwrite("./log/screenshots/info/failed_item_box_" + time.strftime("%Y%m%d_%H%M%S") + ".png", hovered_item)
+        cv2.imwrite("./log/screenshots/info/failed_item_box_" + time.strftime("%Y%m%d_%H%M%S") + ".png", hovered_item_screen)
 
-def inspect_items(inp_img: np.ndarray = None, close_window: bool = True, game_stats: GameStats = None, ignore_sell: bool = False) -> list[BoxInfo]:
+def inspect_inventory_items(close_window: bool = True, game_stats: GameStats = None, ignore_sell: bool = False) -> list[InventoryItemAnalyze]:
     """
     Iterate over all picked items in inventory--ID items and decide which to stash
-    :param img: Image in which the item is searched (item details should be visible)
     """
-    center_mouse()
-    img = open(inp_img)
-    vendor_open = is_visible(ScreenObjects.GoldBtnVendor, inp_img)
-    slots = []
-    # check which slots have items
+    
+    analyzes = []
+    quality = 'ticklish'
+    
+    center_mouse() # Place the mouse outside of the inventory
+    open() # Open inventory if not already done
+    
+    inventory_screen = grab() # Screenshot of the inventory without any item hovered/tooltip shown
+    
+    # If called during gambling or buying/selling, 
+    vendor_open = is_visible(ScreenObjects.GoldBtnVendor, inventory_screen)
+
+    # List occupied slots
+    occupied_slots = []
     for column, row in itertools.product(range(Config().char["num_loot_columns"]), range(4)):
-        slot_pos, slot_img = common.get_slot_pos_and_img(img, column, row)
+        slot_pos, slot_img = common.get_slot_pos_and_img(inventory_screen, column, row)
         if common.slot_has_item(slot_img):
-            slots.append([slot_pos, row, column])
-    boxes = []
-    # iterate over slots with items
-    item_rois = []
-    already_detected_slots = set()
-    for count, slot in enumerate(slots):
+            occupied_slots.append([slot_pos, row, column])
+    
+    # We will avoid treating a same slot many times
+    already_detected_item_tooltip_rois = [] # Already treated regions of the inventory
+    already_treated_slots = set() # Already treated slots (row, col)
+    
+    # Iterate over occupied inventory slots
+    for count, slot in enumerate(occupied_slots):
         failed = False
-        # ignore this slot if it lies within the range of a previous item's dimension property
-        if (slot[1], slot[2]) in already_detected_slots: continue
-        # ignore this slot if it lies within in a previous item's ROI (no dimension property)
-        if any(is_in_roi(item_roi, slot[0]) for item_roi in item_rois): continue
-        img = grab(True)
+        
+        # Ignore this slot if it lies within the range of a previous item's dimension property
+        if (slot[1], slot[2]) in already_treated_slots:
+            continue
+        # Ignore this slot if it lies within in a previous item's ROI (no dimension property)
+        if any(is_in_roi(item_roi, slot[0]) for item_roi in already_detected_item_tooltip_rois):
+            continue
+        
+        delay = [0.2, 0.3] if count else [1, 1.3] # Longer mouse move delay for the 1st item for realism
+        
+        # Move the mouse over the inventory slot
         x_m, y_m = convert_screen_to_monitor(slot[0])
-        delay = [0.2, 0.3] if count else [1, 1.3]
         mouse.move(x_m, y_m, randomize = 10, delay_factor = delay)
         wait(0.1, 0.2)
-        hovered_item = grab(True)
-        # get the item description box
-        item_properties, item_box = (None, None)
-        try: # ! This happens because we don't know the items slot count. To get more context remove the try and catch and see what happens
-            item_properties, item_box = d2r_image.get_hovered_item(hovered_item)
-        except Exception as e:
-            Logger.error(f"personal.inspect_items(): Failed to get item properties for slot {slot}")
-            failed = True
-        if item_box is None:
-            failed = True
-        else:
-            if item_box.ocr_result:
-                if item_properties is not None and hasattr(item_properties, 'BaseItem') and "dimensions" in item_properties.BaseItem:
-                    positions = common.dimensions_to_slots(item_properties.BaseItem["dimensions"], (slot[1], slot[2]))
-                    already_detected_slots.update(positions)
-                else:
-                    Logger.error(f"personal.inspect_items(): unable to determine dimensions for slot {slot}")
-                    # determine the item's ROI in inventory
-                    cnt=0
-                    while True:
-                        pre = mask_by_roi(img, Config().ui_roi["open_inventory_area"])
-                        post = mask_by_roi(hovered_item, Config().ui_roi["open_inventory_area"])
-                        # will sometimes have equivalent diff if mouse ends up in an inconvenient place.
-                        if not np.array_equal(pre, post):
-                            break
-                        Logger.debug(f"inspect_items: pre=post, try again. slot {slot[0]}")
-                        center_mouse(delay_factor=[0.05, 0.1])
-                        img = grab(True)
-                        mouse.move(x_m, y_m, randomize = 10, delay_factor = delay)
-                        wait(0.05, 0.1)
-                        hovered_item = grab(True)
-                        cnt += 1
-                        if cnt >= 2:
-                            Logger.error(f"inspect_items: Unable to get item's inventory ROI, slot {slot[0]}")
-                            break
-                    extend_roi = item_box.roi[:]
-                    extend_roi[3] = extend_roi[3] + 30
-                    item_roi = common.calc_item_roi(mask_by_roi(pre, extend_roi, type = "inverse"), mask_by_roi(post, extend_roi, type = "inverse"))
-                    if item_roi:
-                        item_rois.append(item_roi)
+        hovered_item_screen = grab(True)
+        
+        # Retrieve the item properties & dimensions
+        hovered_item, item_tooltip = d2r_image.get_hovered_item_data(hovered_item_screen)
+        
+        if hovered_item and item_tooltip and item_tooltip.ocr_result:
+            # An item has been detected
+            
+            # Register already treated slots (if possible), otherwise already treated ROIs
+            if hasattr(hovered_item, 'BaseItem') and "dimensions" in hovered_item.BaseItem:
+                # The item dimension is known
+                # By construction "slot" is the top-left slot of the item, so together with the dimension we can compute the set of all slots treated with this item
+                positions = common.dimensions_to_slots(hovered_item.BaseItem["dimensions"], (slot[1], slot[2]))
+                already_treated_slots.update(positions)
+            else:
+                Logger.warning(f"Unknown item dimension for slot {slot}, marking ROI as treated")
+                already_detected_item_tooltip_rois.append(item_tooltip.roi)
+            
 
-                # determine whether the item can be sold
-                ocr_result_split = item_box.ocr_result.text.splitlines()
+            # determine whether the item can be sold
+            tooltip_text = item_tooltip.ocr_result.text.splitlines()
+            item_name = vendor_open and tooltip_text[1] or tooltip_text[0]
+            item_can_be_traded = not any(substring in item_name for substring in nontradable_items) # quest items are not tradable
 
-                item_name = vendor_open and ocr_result_split[1] or ocr_result_split[0]
-                item_can_be_traded = not any(substring in item_name for substring in nontradable_items)
-                sell = Config().char["sell_junk"] and item_can_be_traded and not ignore_sell
-                is_unidentified = is_visible(ScreenObjects.Unidentified, item_box.img)
-
-                box = BoxInfo(
-                    img = item_box.img,
-                    pos = (x_m, y_m),
-                    column = slot[2],
-                    row = slot[1],
-                    sell = sell,
-                    need_id = False,
-                    keep = False
-                )
-
-                tome_state = None
-                try:
-                    if (is_unidentified and should_id(item_properties.as_dict())):
-                        box.need_id = True
-                        center_mouse()
-                        tome_state, tome_pos = common.tome_state(grab(True), tome_type = "id", roi = Config().ui_roi["restricted_inventory_area"])
-                    if is_unidentified and tome_state is not None and tome_state == "ok":
-                        common.id_item_with_tome([x_m, y_m], tome_pos)
-                        box.need_id = False
-                        is_unidentified = True
-                        # recapture box after ID
-                        mouse.move(x_m, y_m, randomize = 4, delay_factor = delay)
-                        wait(0.05, 0.1)
-                        hovered_item = grab(True)
-                        item_properties, item_box = d2r_image.get_hovered_item(hovered_item)
-
-                    if item_box is not None:
-                        log_item(item_box, item_properties)
-                        # decide whether to keep item
-                        box.keep, expression = should_keep(item_properties.as_dict())
-
-                        # make sure it's not a consumable
-                        # TODO: logic for trying to add potion to belt if there are needs
-                        box.keep &= not bool(consumables.is_consumable(item_properties))
-
-                        if box.keep:
-                            Logger.info(f"Keep {item_name}. Expression: {expression}")
-                            sell = False
-                        elif box.need_id:
-                            Logger.debug(f"Need to ID {item_name}.")
+            # Format the output
+            analyze = InventoryItemAnalyze(
+                img = item_tooltip.img,
+                pos = (x_m, y_m),
+                column = slot[2],
+                row = slot[1],
+                sell = Config().char["sell_junk"] and not any(substring in item_name for substring in nontradable_items) and not ignore_sell,
+                need_id = is_visible(ScreenObjects.Unidentified, item_tooltip.img) and should_id(hovered_item.as_dict()),
+                keep = False
+            )
+            
+            # First, identify items that need identification
+            if (analyze.need_id):
+                # Move the mouse out to remove the item tooltip
+                center_mouse()
+                
+                # Try grabbing an ID tome
+                tome_state, tome_pos = common.tome_state(grab(True), tome_type = "id", roi = Config().ui_roi["restricted_inventory_area"])
+                if tome_state is not None and tome_state == "ok":
+                    # Identify the item with it
+                    common.id_item_with_tome([x_m, y_m], tome_pos)
+                    
+                    # recapture analyze after ID
+                    mouse.move(x_m, y_m, randomize = 4, delay_factor = delay)
+                    wait(0.05, 0.1)
+                    hovered_item_screen = grab(True)
+                    
+                    # Check identification result
+                    hovered_item, item_tooltip = d2r_image.get_hovered_item_data(hovered_item_screen)
+                    if hovered_item and item_tooltip and item_tooltip.ocr_result:
+                        identification_succeed = not is_visible(ScreenObjects.Unidentified, item_tooltip.img)
+                        if identification_succeed:
+                            # Note: analyze.sell doesn't change when identifying
+                            analyze.img = item_tooltip.img
+                            analyze.need_id = False
                         else:
-                            #Logger.debug(f"Discarding {json.dumps(item_properties.as_dict(), indent = 4)}")
-                            Logger.debug(f"Discarding {item_name}.")
-
-                        # sell if not keeping item, vendor is open, and item type can be traded
-                        if vendor_open and item_can_be_traded and not (box.keep or box.need_id):
-                            box.sell = True
-                            transfer_items([box], action = "sell")
-                            continue
-
-                        # if item is to be kept and is already ID'd or doesn't need ID, log and stash
-                        if (box.keep and not box.need_id):
-                            if game_stats is not None:
-                                game_stats.log_item_keep(item_name, True, item_box.img, item_box.ocr_result.text, expression, item_properties.as_dict())
-                        # if item is to be kept or still needs to be sold or identified, append to list
-                        if box.keep or sell or box.need_id:
-                            # save item info
-                            boxes.append(box)
-                        else:
-                            # if item isn't going to be kept (or sold if vendor window not open), trash it
-                            transfer_items([box], action = "drop")
-                        wait(0.05, 0.2)
+                            Logger.warning(f"Failed to identify item in slot {slot}")
                     else:
+                        # An error occurred in image cropping or parsing
                         failed = True
-                except AttributeError as e:
-                    failed = True
-                    # * Drop item.
-                    Logger.info(f"Dropping {item_name}. Failed with AttributeError {e}")
-                    transfer_items([box], action = "drop")
+                else:
+                    Logger.warning(f"ID Tome not found or empty when identifying item in slot {slot}")
 
+            # Choose what to do of the item
+            if not failed:
+                log_item(item_tooltip, hovered_item)
+                
+                analyze.keep, expression = should_keep(hovered_item.as_dict())
 
+                # make sure it's not a consumable
+                # TODO: logic for trying to add potion to belt if there are needs
+                analyze.keep &= not bool(consumables.is_consumable(hovered_item))
+
+                if analyze.keep:
+                    # Item to be kept
+                    Logger.info(f"Keep {item_name}. Expression: {expression}")
+                    analyzes.append(analyze)
+                    if game_stats is not None:
+                        game_stats.log_item_keep(item_name, True, item_tooltip.img, item_tooltip.ocr_result.text, expression, hovered_item.as_dict())
+                elif analyze.need_id:
+                    # Item to be identified later
+                    Logger.debug(f"Need to ID {item_name}.")
+                    analyzes.append(analyze)
+                elif analyze.sell:
+                    if vendor_open:
+                        # Sell now
+                        Logger.debug(f"Selling {item_name}.")
+                        transfer_items([analyze], action = "sell")
+                    else:
+                        # Keep and sell later
+                        Logger.debug(f"Need to sell {item_name}.")
+                        analyzes.append(analyze)
+                else:
+                    #Logger.debug(f"Discarding {json.dumps(hovered_item.as_dict(), indent = 4)}")
+                    Logger.debug(f"Discarding {item_name}.")
+                    transfer_items([analyze], action = "drop")
+                wait(0.05, 0.2)
+            else:
+                failed = True
+        else: # get_hovered_item_data did not end properly
+            failed = True
+        
         if failed:
-            log_item_fail(hovered_item, slot)
+            log_item_fail(hovered_item_screen, slot)
 
     if close_window:
         common.close()
-    return boxes
+    return analyzes
 
 def transfer_items(items: list, action: str = "drop", img: np.ndarray = None) -> list:
     #requires open inventory / stash / vendor
@@ -423,7 +423,8 @@ def transfer_items(items: list, action: str = "drop", img: np.ndarray = None) ->
     return items
 
 def update_tome_key_needs(img: np.ndarray = None, item_type: str = "tp") -> bool:
-    img = open(img)
+    open()
+    img = grab()
     if item_type.lower() in ["tp", "id"]:
         match = template_finder.search(
             [f"{item_type.upper()}_TOME", f"{item_type.upper()}_TOME_RED"],
@@ -448,19 +449,19 @@ def update_tome_key_needs(img: np.ndarray = None, item_type: str = "tp") -> bool
         return False
     mouse.move(*match.center_monitor, randomize=4, delay_factor=[0.5, 0.7])
     wait(0.2, 0.2)
-    hovered_item = grab(True)
+    hovered_item_screen = grab(True)
     # get the item description box
-    item_properties, item_box = d2r_image.get_hovered_item(hovered_item)
-    if item_box is not None:
+    hovered_item, item_tooltip = d2r_image.get_hovered_item_data(hovered_item_screen)
+    if item_tooltip is not None:
         try:
-            quantity = int(item_properties.NTIPAliasStat[NTIP_STATS["quantity"]])
-            max_quantity = int(item_properties.NTIPAliasStat[NTIP_STATS["quantitymax"]])
+            quantity = int(hovered_item.NTIPAliasStat[NTIP_STATS["quantity"]])
+            max_quantity = int(hovered_item.NTIPAliasStat[NTIP_STATS["quantitymax"]])
             consumables.set_needs(item_type, max_quantity - quantity)
         except Exception as e:
             Logger.error(f"update_tome_key_needs: unable to parse quantity for {item_type}. Exception: {e}")
     else:
         Logger.error(f"update_tome_key_needs: Failed to capture item description box for {item_type}")
         if Config().general["info_screenshots"]:
-            cv2.imwrite("./log/screenshots/info/failed_capture_item_description_box" + time.strftime("%Y%m%d_%H%M%S") + ".png", hovered_item)
+            cv2.imwrite("./log/screenshots/info/failed_capture_item_description_box" + time.strftime("%Y%m%d_%H%M%S") + ".png", hovered_item_screen)
         return False
     return True

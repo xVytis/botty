@@ -4,7 +4,7 @@ import time
 import numpy as np
 
 from health_manager import get_panel_check_paused, set_panel_check_paused
-from inventory.personal import inspect_items
+from inventory.personal import inspect_inventory_items
 from screen import convert_abs_to_monitor, convert_screen_to_abs, grab, convert_abs_to_screen
 from utils.custom_mouse import mouse
 from char.paladin import Paladin
@@ -88,7 +88,7 @@ class FoHdin(Paladin):
         self._picked_up_items |= new_items
         if not skip_inspect and new_items:
             set_panel_check_paused(True)
-            inspect_items(grab(), ignore_sell=True)
+            inspect_inventory_items(ignore_sell=True)
             set_panel_check_paused(False)
 
 

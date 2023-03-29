@@ -25,7 +25,7 @@ def load_hovered_items() -> dict:
         if filename.lower().endswith('.png'):
             basename = filename[:-4]
             image = cv2.imread(f"{PATH}/{basename}.png")
-            result, _ = processing.get_hovered_item(image)
+            result, _ = processing.get_hovered_item_data(image)
             test_objs[basename] = result
     return test_objs
 

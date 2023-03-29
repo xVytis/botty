@@ -4,8 +4,10 @@ import re
 import time
 import math
 import copy
+import traceback
+import template_finder
 
-from d2r_image.data_models import GroundItem, GroundItemList, ItemQuality, ItemQualityKeyword, ItemText
+from d2r_image.data_models import GroundItem, GroundItemList, ItemQuality, ItemQualityKeyword, ItemTooltip
 from d2r_image.bnip_data import NTIP_ALIAS_QUALITY_MAP
 from d2r_image.bnip_helpers import basename_to_types
 from d2r_image.ocr import image_to_text
@@ -14,19 +16,16 @@ import d2r_image.d2data_lookup as d2data_lookup
 from d2r_image.d2data_lookup import fuzzy_base_item_match
 from d2r_image.processing_data import EXPECTED_HEIGHT_RANGE, EXPECTED_WIDTH_RANGE, GAUS_FILTER, ITEM_COLORS, QUALITY_COLOR_MAP, Runeword, BOX_EXPECTED_HEIGHT_RANGE, BOX_EXPECTED_WIDTH_RANGE
 from d2r_image.strings_store import base_items
-from utils.misc import color_filter, erode_to_black, slugify
+from utils.misc import color_filter, erode_to_black, slugify, cut_roi, roi_center
 from ui_manager import get_hud_mask
-
 from screen import convert_screen_to_monitor
-from utils.misc import color_filter, cut_roi, roi_center
 from logger import Logger
 from config import Config
-import template_finder
 
 gold_regex = re.compile(r'(^[0-9]+)\sGOLD')
 
 import time
-def crop_text_clusters(inp_img: np.ndarray, padding_y: int = 5) -> list[ItemText]:
+def crop_text_clusters(inp_img: np.ndarray, padding_y: int = 5) -> list[ItemTooltip]:
     cleaned_img = clean_img(inp_img)
     # Cluster item names
     item_clusters = []
@@ -65,7 +64,7 @@ def crop_text_clusters(inp_img: np.ndarray, padding_y: int = 5) -> list[ItemText
                     color_averages.append(extr_avg)
                 max_idx = color_averages.index(max(color_averages))
                 if key == ITEM_COLORS[max_idx]:
-                    item_clusters.append(ItemText(
+                    item_clusters.append(ItemTooltip(
                         color=key,
                         quality=QUALITY_COLOR_MAP[key],
                         roi=[x, y, w, h],
@@ -78,14 +77,14 @@ def crop_text_clusters(inp_img: np.ndarray, padding_y: int = 5) -> list[ItemText
         setattr(cluster, "ocr_result", results[count])
     return item_clusters
 
-def crop_item_tooltip(image: np.ndarray, model: str = "hover-eng_inconsolata_inv_th_fast") -> tuple[ItemText, str]:
+def crop_item_tooltip(image: np.ndarray, model: str = "hover-eng_inconsolata_inv_th_fast") -> tuple[ItemTooltip, str]:
     """
     Crops hovered item (from the inventory)'s description tooltip
     :image: screen-image of an hovered item from the inventory.
     :model: which ocr model to use
     """
-    res = ItemText()
-    quality = None
+    res = ItemTooltip()
+    quality = None # Also serves as a "found" boolean variable
     
     # Tooltips have a black background frame: keep only the black color on screen
     black_mask = color_filter(image, Config().colors["black"])[0]
@@ -99,7 +98,7 @@ def crop_item_tooltip(image: np.ndarray, model: str = "hover-eng_inconsolata_inv
     for cntr in contours:
         # Get the cropped region from the image
         x, y, w, h = cv2.boundingRect(cntr)
-        cropped_item = image[y:y+h, x:x+w]
+        tooltip_candidate = image[y:y+h, x:x+w]
 
         # Check if the region size is consistent with a tooltip. If not, discard
         if not (expected_height := BOX_EXPECTED_HEIGHT_RANGE[0] < h < BOX_EXPECTED_HEIGHT_RANGE[1]):
@@ -108,22 +107,22 @@ def crop_item_tooltip(image: np.ndarray, model: str = "hover-eng_inconsolata_inv
             continue
 
         # Check if the region is mostly dark. If not, discard
-        avg = np.average(cv2.cvtColor(cropped_item, cv2.COLOR_BGR2GRAY))
+        avg = np.average(cv2.cvtColor(tooltip_candidate, cv2.COLOR_BGR2GRAY))
         if not (mostly_dark := 0 < avg < 35):
             continue
             
         # Check if the region contains black. If not, discard
-        if not (contains_black := np.min(cropped_item) < 14):
+        if not (contains_black := np.min(tooltip_candidate) < 14):
             continue
 
         # In D2, all item tooltips contain some text in white color, except keys/essences/organs
         # Keys/essences/organs tooltips contain some text in orange color
         # So: check if the region contains white or orange. If neither, discard.
-        contains_white = np.max(cropped_item) > 250
+        contains_white = np.max(tooltip_candidate) > 250
         contains_orange = False
         if not contains_white:
             # check for orange (like key of destruction, etc.)
-            orange_mask, _ = color_filter(cropped_item, Config().colors["orange"])
+            orange_mask, _ = color_filter(tooltip_candidate, Config().colors["orange"])
             contains_orange = np.min(orange_mask) > 0
         if not (contains_white or contains_orange):
             continue
@@ -147,10 +146,17 @@ def crop_item_tooltip(image: np.ndarray, model: str = "hover-eng_inconsolata_inv
         footer_h = 720 - footer_y
         found_footer = template_finder.search(["TO_TOOLTIP"], image, threshold=0.8, roi=[x, footer_y, w, footer_h]).valid
         if found_footer:
+            res.roi = [x, y, w, h]
+            res.img = tooltip_candidate
+        
             # Read the block of text in the image
-            res.ocr_result = image_to_text(cropped_item, psm=6, model=model)[0]
+            try:
+                res.ocr_result = image_to_text(tooltip_candidate, psm=6, model=model)[0]
+            except Exception as e:
+                raise Exception(f"image_to_text failed with ERROR {e}\n {traceback.format_exc()}")
+            
             # Detect the color of the object name (tooltip first row) to figure its quality (set, unique, rare, ...)
-            first_row = cut_roi(copy.deepcopy(cropped_item), (0, 0, w, 26))
+            first_row = cut_roi(copy.deepcopy(tooltip_candidate), (0, 0, w, 26))
             if _contains_color(first_row, "green"):
                 quality = ItemQuality.Set.value
             elif _contains_color(first_row, "gold"):
@@ -172,12 +178,10 @@ def crop_item_tooltip(image: np.ndarray, model: str = "hover-eng_inconsolata_inv
                 # Default, just in case
                 Logger.warning("Could not identify clearly item quality")
                 quality = ItemQuality.Normal.value
-            res.roi = [x, y, w, h]
-            res.img = cropped_item
             break
     
-    if quality == None:
-        Logger.error("Failed to find the hovered inventory item's tooltip")
+    if quality == None: # If not found
+        Logger.error("Failed to find/crop the tooltip of the hovered inventory item")
     
     return res, quality
 
@@ -197,7 +201,7 @@ def clean_img(inp_img: np.ndarray, black_thresh: int = 14) -> np.ndarray:
     return img
 
 
-def get_items_by_quality(crop_result: list[ItemText]):
+def get_items_by_quality(crop_result: list[ItemTooltip]):
     items_by_quality = {}
     for quality in ItemQuality:
         items_by_quality[quality.value] = []

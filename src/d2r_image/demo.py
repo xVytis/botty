@@ -10,9 +10,9 @@ from utils.misc import cut_roi, slugify
 from utils import download_test_assets
 
 import d2r_image.processing as processing
-from d2r_image.processing import get_hovered_item
+from d2r_image.processing import get_hovered_item_data
 from d2r_image.processing_helpers import clean_img, crop_text_clusters
-from d2r_image.data_models import ItemQuality, ItemQualityKeyword, ItemText, EnhancedJSONEncoder
+from d2r_image.data_models import ItemQuality, ItemQualityKeyword, ItemTooltip, EnhancedJSONEncoder
 
 screen.set_window_position(0, 0)
 
@@ -94,7 +94,7 @@ def get_hovered_items():
             image_data = cv2.imread(f"{base_dir}/{image_name}")
             image = deepcopy(image_data)
             start = time.time()
-            item, res = processing.get_hovered_item(image)
+            item, res = processing.get_hovered_item_data(image)
             end = time.time()
             elapsed = round(end-start, 2)
             total_elapsed_time += elapsed
@@ -149,7 +149,7 @@ def gen_truth_from_ground_loot(items, image):
 def gen_truth_from_hovered_item(tooltip_img):
     contours = crop_text_clusters(tooltip_img, 5)
     for contour in contours:
-        contour : ItemText
+        contour : ItemTooltip
         basename = f"log/screenshots/generated/ground-truth/{slugify(contour.ocr_result.text)}_{contour.color}"
         if os.path.exists(f"{basename}.png"):
             print(f"{basename} already exists, skip")

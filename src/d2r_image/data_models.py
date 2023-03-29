@@ -42,7 +42,7 @@ class ItemQuality(Enum):
 
 
 @dataclass
-class ItemText:
+class ItemTooltip:
     color: str = None
     quality: ItemQuality = None
     roi: list[int] = None

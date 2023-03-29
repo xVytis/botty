@@ -301,7 +301,8 @@ class Bot:
         if Config().char["runs_per_stash"]:
             need_inspect |= (self._game_stats._run_counter - 1) % Config().char["runs_per_stash"] == 0
         if need_inspect:
-            img = personal.open()
+            personal.open()
+            img = grab()
             # Update TP, ID, key needs
             if self._game_stats._game_counter == 1:
                 self._use_id_tome = common.tome_state(img, 'id')[0] is not None
@@ -314,9 +315,9 @@ class Bot:
                     # if keys run out then refilling will be unreliable :(
                     self._use_keys = personal.update_tome_key_needs(img, item_type = 'key')
             # Check inventory items
-            if personal.inventory_has_items(img):
+            if personal.inventory_has_items():
                 Logger.debug("Inspecting inventory items")
-                items = personal.inspect_items(img, game_stats=self._game_stats, close_window=False)
+                items = personal.inspect_inventory_items(game_stats=self._game_stats, close_window=False)
         common.close()
         Logger.debug(f"Needs: {consumables.get_needs()}")
         if items:
@@ -327,7 +328,7 @@ class Bot:
                 if not self._curr_loc:
                     return self.trigger_or_stop("end_game", failed=True)
                 # recheck inventory
-                items = personal.inspect_items(game_stats=self._game_stats)
+                items = personal.inspect_inventory_items(game_stats=self._game_stats)
         keep_items = any([item.keep for item in items]) if items else None
         sell_items = any([item.sell for item in items]) if items else None
         stash_gold = personal.get_inventory_gold_full()

@@ -13,24 +13,23 @@ from screen import convert_abs_to_monitor, convert_monitor_to_screen, convert_sc
 import keyboard
 import os
 
-def open(img: np.ndarray = None) -> np.ndarray:
-    img = grab() if img is None else img
+def open() -> np.ndarray:
+    img = grab()
     if is_visible(ScreenObjects.BeltExpandable, img) and Config().char["belt_rows"] > 1:
         keyboard.send(Config().char["show_belt"])
         if not wait_until_hidden(ScreenObjects.BeltExpandable, 1):
-            return None
-        img = grab()
-    return img
+            return False
+    return True
 
-def close(img: np.ndarray = None) -> np.ndarray:
-    img = grab() if img is None else img
+def close() -> np.ndarray:
+    img = grab()
     if not is_visible(ScreenObjects.BeltExpandable, img):
         keyboard.send("esc")
         if not wait_until_visible(ScreenObjects.BeltExpandable, 2).valid:
             success = view.return_to_play()
             if not success:
-                return None
-    return img
+                return False
+    return True
 
 def _potion_type(img: np.ndarray) -> str:
     """
@@ -100,7 +99,8 @@ def update_pot_needs():
     if screen_mouse_pos[1] > Config().ui_pos["screen_height"] * 0.72:
         center_m = convert_abs_to_monitor((-200, -120))
         mouse.move(*center_m, randomize=100)
-    img = open()
+    open()
+    img = grab()
     # first clean up columns that might be too much
     for column in range(4):
         potion_type = None
@@ -140,7 +140,7 @@ def update_pot_needs():
     consumables.set_needs("health", pot_needs["health"])
     consumables.set_needs("mana", pot_needs["mana"])
     consumables.set_needs("rejuv", pot_needs["rejuv"])
-    close(img)
+    close()
     # Return the details to replace removed 'should_buy_pots' methods necesarry for Diablo (from Gastropod's fork)
     if sum(pot_needs.values()):
         return pot_needs # A dict with pot names as key, and quantities needed as values
@@ -152,7 +152,7 @@ def fill_up_belt_from_inventory(num_loot_columns: int):
     Fill up your belt with pots from the inventory e.g. after death. It will open and close invetory by itself!
     :param num_loot_columns: Number of columns used for loot from left
     """
-    img = personal.open()
+    personal.open()
     pot_positions = []
     for column, row in itertools.product(range(num_loot_columns), range(4)):
         center_pos, slot_img = common.get_slot_pos_and_img(img, column, row)
@@ -167,4 +167,4 @@ def fill_up_belt_from_inventory(num_loot_columns: int):
         mouse.click(button="left")
         wait(0.3, 0.4)
     keyboard.release("shift")
-    common.close(img)
+    common.close()

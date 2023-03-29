@@ -49,17 +49,24 @@ def slot_has_item(slot_img: np.ndarray) -> bool:
     avg_brightness = np.average(slot_img[:, :, 2])
     return avg_brightness > 16.0
 
-def inventory_is_open(img: np.ndarray = None) -> bool:
-    img = grab() if img is None else img
+def inventory_is_open() -> bool:
+    """
+    Check if the inventory window is open or not.
+    :return: Bool if it is open or not
+    """
+    img = grab()
     return (
         is_visible(ScreenObjects.RightPanel, img)
         or is_visible(ScreenObjects.LeftPanel, img)
         or is_visible(ScreenObjects.InventoryBackground, img)
     )
 
-def close(img: np.ndarray = None) -> np.ndarray | None:
-    img = grab() if img is None else img
-    if inventory_is_open(img):
+def close() -> np.ndarray | None:
+    """
+    Close the inventory window.
+    :return: The tested image
+    """
+    if inventory_is_open():
         # close open inventory
         keyboard.send("esc")
         # check to ensure it closed
@@ -72,8 +79,8 @@ def close(img: np.ndarray = None) -> np.ndarray | None:
         if not timer:
             success = view.return_to_play()
             if not success:
-                return None
-    return img
+                return False
+    return True
 
 
 def calc_item_roi(img_pre, img_post):
