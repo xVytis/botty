@@ -22,7 +22,7 @@ from win32process import GetWindowThreadProcessId
 import psutil
 
 from rapidfuzz.process import extractOne
-from rapidfuzz.string_metric import levenshtein
+from rapidfuzz.distance import Levenshtein
 
 def close_down_d2():
     subprocess.call(["taskkill","/F","/IM","D2R.exe"], stderr=subprocess.DEVNULL)
@@ -242,7 +242,7 @@ class BestMatchResult:
     score_normalized: float
 
 def find_best_match(in_str: str, str_list: list[str]) -> BestMatchResult:
-    best_match, best_lev, _ = extractOne(in_str, str_list, scorer=levenshtein)
+    best_match, best_lev, _ = extractOne(in_str, str_list, scorer=Levenshtein)
     best_lev_normalized = 1 - best_lev / max(1, len(in_str))
     return BestMatchResult(best_match, best_lev, best_lev_normalized)
 

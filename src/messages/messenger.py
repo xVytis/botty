@@ -3,15 +3,15 @@ from config import Config
 import numpy as np
 
 from messages.generic_api import GenericApi
-from messages.discord_embeds import DiscordEmbeds
+# from messages.discord_embeds import DiscordEmbeds
 
 
 class Messenger:
     def __init__(self):
         if Config().general["message_api_type"] == "generic_api":
             self._message_api = GenericApi()
-        elif Config().general["message_api_type"] == "discord":
-            self._message_api = DiscordEmbeds()
+        # elif Config().general["message_api_type"] == "discord":
+            # self._message_api = DiscordEmbeds()
         else:
             self._message_api = None
         self.enabled = Config().general["message_api_type"] and Config().general["custom_message_hook"]
