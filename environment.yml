@@ -36,3 +36,5 @@ dependencies:
     - colorama
     - dataclasses-json
     - pyparsing
+    - rapidfuzz
+    - discord

@@ -16,7 +16,7 @@ from bnip.BNipExceptions import BNipSyntaxError
 
 from enum import Enum
 import re
-from rapidfuzz.string_metric import levenshtein
+from rapidfuzz.distance import Levenshtein
 
 WHITESPACE = " \t\n\r\v\f"
 DIGITS = "0123456789.-" # ! Put % back in here when ready to use percentages.

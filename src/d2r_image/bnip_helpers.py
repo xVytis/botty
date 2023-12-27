@@ -2,7 +2,7 @@ from d2r_image.d2data_lookup import find_base_item_from_magic_item_text, find_pa
 from d2r_image.data_models import HoveredItem, ItemQuality
 from d2r_image.bnip_data import BNIP_ALIAS_STAT_PATTERNS, NTIP_ALIAS_QUALITY_MAP, PROPS_TO_SKILLID, BNIP_ALIAS_STAT_PATTERNS_NO_INTS, BNIP_ITEM_TYPE_DATA
 from d2r_image.processing_data import Runeword
-from rapidfuzz.string_metric import levenshtein
+from rapidfuzz.distance import Levenshtein
 from bnip.NTIPAliasType import NTIPAliasType as NTIP_TYPES
 from bnip.NTIPAliasStat import NTIPAliasStat as NTIP_STATS
 from logger import Logger
@@ -44,7 +44,7 @@ def parse_item(quality, item, _call_count=1):
             cleaned_lines.append(line)
     lines = cleaned_lines
     for line in lines:
-        if levenshtein(line, 'UNIDENTIFIED') < 3:
+        if Levenshtein(line, 'UNIDENTIFIED') < 3:
             item_is_identified = False
         if 'ETHEREAL' in line:
             item_is_ethereal = True
